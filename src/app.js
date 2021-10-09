@@ -6,7 +6,6 @@ import routes from "./routes";
 import PostgresDB from "./dao/PostgresDB";
 import cors from "cors";
 
-import ts from "timeseries-analysis";
 import { time } from "console";
 
 const app = express();

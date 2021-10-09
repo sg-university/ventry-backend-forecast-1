@@ -41,12 +41,13 @@
     "body-parser": "^1.18.2",
     "cors": "^2.8.5",
     "express": "^4.16.4",
+    "google-image-chart": "^1.2.0",
     "moment": "^2.29.1",
     "morgan": "^1.9.1",
     "pg": "^8.5.1",
     "pug": "^2.0.3",
     "rimraf": "^2.6.3",
-    "timeseries-analysis": "^1.0.12",
+    "underscore": "^1.12.1",
     "uuid": "^8.2.0"
   },
   "devDependencies": {

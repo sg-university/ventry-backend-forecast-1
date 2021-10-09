@@ -1,6 +1,6 @@
 import { Router } from "express";
 import BookService from "../services/BookService";
-import ts from "timeseries-analysis";
+import ts from "../tools/timeseries-analysis";
 import moment from "moment";
 // import ARIMA from "arima";
 
@@ -12,64 +12,54 @@ class timeseries {
   }
 
   getBestSettings = (optionsArg) => {
-    return new Promise((resolve, reject) => {
-      try {
-        const options = {
-          method: ["ARMaxEntropy", "ARLeastSquare"],
-          sample: Math.round(this.model.data.length * 0.2),
-          degree: Math.round(this.model.data.length * 0.2),
-          ...optionsArg,
-        };
+    const options = {
+      method: ["ARMaxEntropy", "ARLeastSquare"],
+      sample: Math.round(this.model.data.length * 0.2),
+      degree: Math.round(this.model.data.length * 0.2),
+      ...optionsArg,
+    };
 
-        const bestSettings = {
-          sample: null,
-          degree: null,
-          method: null,
-          MSE: null,
-        };
-        let bestModel = new ts.main([]);
+    const bestSettings = {
+      sample: null,
+      degree: null,
+      method: null,
+      MSE: null,
+    };
+    let bestModel = new ts.main([]);
 
-        for (let mtd = 0, len = options.method.length; mtd < len; mtd++) {
-          for (
-            let deg = 1;
-            deg <= options.degree && deg <= options.sample;
-            deg++
-          ) {
-            const model = new ts.main(this.model.data);
+    for (let mtd = 0, len = options.method.length; mtd < len; mtd++) {
+      for (let deg = 1; deg <= options.degree && deg <= options.sample; deg++) {
+        const model = new ts.main(this.model.data);
 
-            const MSE = model.regression_forecast({
-              method: options.method[mtd],
-              sample: options.sample,
-              degree: deg,
-            });
+        const MSE = model.regression_forecast({
+          method: options.method[mtd],
+          sample: options.sample,
+          degree: deg,
+        });
 
-            console.log(
-              "Trying method(" +
-                options.method[mtd] +
-                ") sample(" +
-                options.sample +
-                ") degree(" +
-                deg +
-                ")\t" +
-                MSE
-            );
+        // console.log(
+        //   "Trying method(" +
+        //     options.method[mtd] +
+        //     ") sample(" +
+        //     options.sample +
+        //     ") degree(" +
+        //     deg +
+        //     ")\t" +
+        //     MSE
+        // );
 
-            if (!isNaN(MSE)) {
-              if (bestSettings.MSE === null || MSE < bestSettings.MSE) {
-                bestSettings["MSE"] = MSE;
-                bestSettings["method"] = options.method[mtd];
-                bestSettings["sample"] = options.sample;
-                bestSettings["degree"] = deg;
-                bestModel = model;
-              }
-            }
+        if (!isNaN(MSE)) {
+          if (bestSettings.MSE === null || MSE < bestSettings.MSE) {
+            bestSettings["MSE"] = MSE;
+            bestSettings["method"] = options.method[mtd];
+            bestSettings["sample"] = options.sample;
+            bestSettings["degree"] = deg;
+            bestModel = model;
           }
         }
-        resolve(bestSettings);
-      } catch (err) {
-        reject(err);
       }
-    });
+    }
+    return bestSettings;
   };
 }
 
@@ -93,19 +83,21 @@ const f = (a, b) => {
 };
 
 const timeseriesTest1 = async () => {
-  const raw = ts.adapter.complex({
+  let raw = ts.adapter.complex({
     cycle: 10,
     inertia: 0.1,
   });
+  raw = ts.adapter.sin({ cycles: 4 });
+
   let datasets = [];
-  for (let i = 0; i < raw.length * 5; i++) {
+  for (let i = 0; i < raw.length * 1; i++) {
     const val = [
       moment()
         .add(i * 1, "h")
         .toISOString(),
-      Math.round(f(Math.random(), Math.random()) + Math.random() / 5),
+      // Math.round(f(Math.random(), Math.random()) + Math.random() / 5),
       // Math.round(Math.random() * 3),
-      // raw[i][1],
+      raw[i][1],
     ];
     datasets.push(val);
   }
@@ -116,12 +108,12 @@ const timeseriesTest1 = async () => {
       console.log(val);
     }
   });
-  datasets = getResampledData(datasets, "day");
-  datasets.splice(0, 1);
-  console.log(datasets.length);
-  datasets.forEach((val, idx) => {
-    console.log(val);
-  });
+  // datasets = getResampledData(datasets, "day");
+  // datasets.splice(0, 1);
+  // console.log(datasets.length);
+  // datasets.forEach((val, idx) => {
+  //   console.log(val);
+  // });
 
   // datasets = [
   //   ["2021-03-09T17:33:24.104Z", 76],
@@ -140,18 +132,27 @@ const timeseriesTest1 = async () => {
   const t1 = new timeseries(datasets);
 
   // undefined data if sample < 3
-  const bestSettings1 = await t1.getBestSettings({
-    sample: Math.round(datasets.length * 0.6),
-    degree: Math.round(datasets.length * 0.6),
-    method: ["ARMaxEntropy", "ARLeastSquare"],
-  });
+  // const bestSettings1 = t1.getBestSettings({
+  //   sample: Math.round(datasets.length * 0.6),
+  //   degree: Math.round(datasets.length * 0.6),
+  //   method: ["ARMaxEntropy", "ARLeastSquare"],
+  // });
+
+  const bestSettings1 = {
+    n: 1, // How many data points to be forecasted
+    sample: 10, // How many datapoints to be training dataset
+    start: 11, // Initial forecasting position
+    method: "ARMaxEntropy", // What method for forecasting
+    degree: 5, // How many degree for forecasting
+    growthSampleMode: false, // Is the sample use only last x data points or up to entire data points?
+  };
 
   const MSE1 = t1.model.regression_forecast({
     method: bestSettings1.method, // ARMaxEntropy or ARLeastSquare
     sample: bestSettings1.sample, // How many training data point for forecasting model
     degree: bestSettings1.degree,
     start: bestSettings1.sample + 1,
-    n: Math.round(t1.model.data.length * 1.5) - bestSettings1.sample, // How many points to forecast
+    n: 1, // How many points to forecast
   });
   const chart1 = t1.model.chart({
     main: true,
@@ -163,18 +164,19 @@ const timeseriesTest1 = async () => {
   console.log("===========================");
 
   const t2 = new timeseries(datasets);
-  const bestSettings2 = await t2.getBestSettings({
-    sample: Math.round(datasets.length * 0.6),
-    degree: Math.round(datasets.length * 0.6),
-    method: ["ARMaxEntropy", "ARLeastSquare"],
-  });
+  // const bestSettings2 = t2.getBestSettings({
+  //   sample: Math.round(datasets.length * 0.6),
+  //   degree: Math.round(datasets.length * 0.6),
+  //   method: ["ARMaxEntropy", "ARLeastSquare"],
+  // });
+  const bestSettings2 = bestSettings1;
 
   const MSE2 = t2.model.regression_forecast({
     method: bestSettings2.method, // ARMaxEntropy or ARLeastSquare
     sample: bestSettings2.sample, // How many training data point for forecasting model
     degree: bestSettings2.degree,
     start: bestSettings2.sample + 1, // must > 3
-    n: Math.round(t2.model.data.length * 1.5) - bestSettings2.sample, // How many points to forecast
+    n: 20, // How many points to forecast
     growthSampleMode: true,
   });
 
@@ -186,13 +188,13 @@ const timeseriesTest1 = async () => {
   // const outliers2 = t2.model.outliers();
 
   const fetchData = {
-    forecasted1: t1.model.data.map((val, idx) => {
+    forecasted1: t1.model.data.slice(0, 11).map((val, idx) => {
       return { timestamp: val[0], value: val[1] };
     }),
-    forecasted2: t2.model.data.map((val, idx) => {
+    forecasted2: t2.model.data.slice(0, 11).map((val, idx) => {
       return { timestamp: val[0], value: val[1] };
     }),
-    observed: datasets.map((val, idx) => {
+    observed: datasets.slice(0, 11).map((val, idx) => {
       return { timestamp: val[0], value: val[1] };
     }),
   };
